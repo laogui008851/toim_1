@@ -3744,11 +3744,13 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         name = chat.first_name or chat.username or ''
                     except Exception:
                         pass
-                    label = f'{name} ' if name else ''
-                    msg += f'• {label}<code>{i}</code>\n'
+                    if name:
+                        msg += f'• <b>{name}</b> (<code>{i}</code>)\n'
+                    else:
+                        msg += f'• <code>{i}</code>\n'
                 msg += '\n'
             if all_l1:
-                msg += '🟡 <b>一级管理</b>\n'
+                msg += '🟡 <b>官方</b>\n'
                 for i in all_l1:
                     name = ''
                     try:
@@ -3756,8 +3758,10 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         name = chat.first_name or chat.username or ''
                     except Exception:
                         pass
-                    label = f'{name} ' if name else ''
-                    msg += f'• {label}<code>{i}</code>\n'
+                    if name:
+                        msg += f'• <b>{name}</b> (<code>{i}</code>)\n'
+                    else:
+                        msg += f'• <code>{i}</code>\n'
             if not all_l1 and not all_l2:
                 msg += '• 无\n'
             await query.message.reply_text(msg, parse_mode='HTML')
@@ -4008,6 +4012,11 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if not (1 <= count <= 100 and 1 <= hours <= 8760):
                 await _reply_menu('❌ 数量范围 1~100，小时范围 1~8760')
                 return
+            # 获取代理名字
+            agent = db.get_agent(tid)
+            agent_name = ''
+            if agent:
+                agent_name = agent['first_name'] or agent['username'] or ''
             await _reply_menu('⏳ 正在生成授权码…')
             codes = []
             for _ in range(count):
@@ -4028,8 +4037,12 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
             except Exception:
                 pass
-            await _reply_menu(f'✅ 完成！已为 <code>{tid}</code> 生成 {len(codes)} 个授权码\n{push_note}', parse_mode='HTML')
-            await _root_silent_notify(user_id, '下发授权码', f'目标代理：<code>{tid}</code>\n数量：{len(codes)} 个  有效期：{hours}h')
+            if agent_name:
+                await _reply_menu(f'✅ 完成！已为 <b>{agent_name}</b> (<code>{tid}</code>) 生成 {len(codes)} 个授权码\n{push_note}', parse_mode='HTML')
+                await _root_silent_notify(user_id, '下发授权码', f'目标代理：<b>{agent_name}</b>\nID：<code>{tid}</code>\n数量：{len(codes)} 个  有效期：{hours}h')
+            else:
+                await _reply_menu(f'✅ 完成！已为 <code>{tid}</code> 生成 {len(codes)} 个授权码\n{push_note}', parse_mode='HTML')
+                await _root_silent_notify(user_id, '下发授权码', f'目标代理：<code>{tid}</code>\n数量：{len(codes)} 个  有效期：{hours}h')
 
         elif subcmd == 'delcodes':
             if not has_perm(user_id, 'delcodes'):
@@ -4043,6 +4056,7 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if not agent:
                 await _reply_menu(f'❌ 未找到代理 {tid}')
                 return
+            agent_name = agent['first_name'] or agent['username'] or ''
             _local_db = agent['local_db_path'] if 'local_db_path' in agent.keys() else None  # noqa: F841
             await _reply_menu(f'⏳ 正在删除 {tid} 的授权码…')
             deleted, remaining = await _delete_remote_auth_codes(tid, count)
@@ -4050,7 +4064,10 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await _reply_menu('⚠️ 该代理没有可用授权码')
                 return
             await _reply_menu(f'✅ 已删除 {deleted} 个可用授权码\n📦 剩余可用：{remaining} 个')
-            await _root_silent_notify(user_id, '删除授权码', f'目标代理：<code>{tid}</code>\n删除数量：{deleted} 个')
+            if agent_name:
+                await _root_silent_notify(user_id, '删除授权码', f'目标代理：<b>{agent_name}</b>\nID：<code>{tid}</code>\n删除数量：{deleted} 个')
+            else:
+                await _root_silent_notify(user_id, '删除授权码', f'目标代理：<code>{tid}</code>\n删除数量：{deleted} 个')
 
         elif subcmd == 'agentcodes':
             if not text.lstrip('-').isdigit():
@@ -4091,11 +4108,19 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             codes = await _get_remote_code_list(tid)
             in_use, idle, expired = _classify_codes(codes)
             agent = db.get_agent(tid)
-            name = f" ({agent['first_name'] or agent['username'] or ''})" if agent else ''
-            await _reply_menu(
-                f'📊 <b>出售机器人 <code>{tid}</code>{name}</b>\n\n总计：{len(codes)}\n🟢使用中：{in_use}\n🔵未使用：{idle}\n🔴已过期：{expired}',
-                parse_mode='HTML'
-            )
+            name = ''
+            if agent:
+                name = agent['first_name'] or agent['username'] or ''
+            if name:
+                await _reply_menu(
+                    f'📊 <b>出售机器人：<b>{name}</b></b>\nID：<code>{tid}</code>\n\n总计：{len(codes)}\n🟢使用中：{in_use}\n🔵未使用：{idle}\n🔴已过期：{expired}',
+                    parse_mode='HTML'
+                )
+            else:
+                await _reply_menu(
+                    f'📊 <b>出售机器人</b>\nID：<code>{tid}</code>\n\n总计：{len(codes)}\n🟢使用中：{in_use}\n🔵未使用：{idle}\n🔴已过期：{expired}',
+                    parse_mode='HTML'
+                )
 
         elif subcmd == 'addadmin':
             if not has_perm(user_id, 'addadmin'):
@@ -4112,11 +4137,22 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await _reply_menu('❗️该ID是二级管理，不能将其降级')
                 return
             if existing_level == 1:
-                await _reply_menu('该 ID 已是一级管理员')
+                await _reply_menu('该 ID 已是官方管理员')
                 return
+            # 获取用户名字
+            admin_name = ''
+            try:
+                chat = await _app_bot.get_chat(aid)
+                admin_name = chat.first_name or chat.username or ''
+            except Exception:
+                pass
             db.add_admin(aid, user_id, level=1)
-            await _reply_menu(f'✅ 已添加一级管理员：<code>{aid}</code>', parse_mode='HTML')
-            await _root_silent_notify(user_id, '添加一级管理员', f'新管理员ID：<code>{aid}</code>')
+            if admin_name:
+                await _reply_menu(f'✅ 已添加官方管理员：<b>{admin_name}</b> (<code>{aid}</code>)', parse_mode='HTML')
+                await _root_silent_notify(user_id, '添加官方管理员', f'新管理员：<b>{admin_name}</b>\nID：<code>{aid}</code>')
+            else:
+                await _reply_menu(f'✅ 已添加官方管理员：<code>{aid}</code>', parse_mode='HTML')
+                await _root_silent_notify(user_id, '添加官方管理员', f'新管理员ID：<code>{aid}</code>')
 
         elif subcmd == 'deladmin':
             if not has_perm(user_id, 'deladmin'):
