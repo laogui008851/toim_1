@@ -20,13 +20,12 @@ import psycopg2
 
 import psycopg2.extras
 
-import qrcode  # noqa: F401 - 补充缺失的导入
 
 from io import BytesIO  # 补充二维码生成所需导入
 
 from dotenv import load_dotenv
 
-from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, InputMediaPhoto  # noqa: F401
+from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton  # noqa: F401
 
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, CallbackQueryHandler, filters
 
@@ -58,7 +57,7 @@ ADMIN_IDS = {int(x) for x in os.getenv('ADMIN_IDS', '').split(',') if x.strip().
 
 ADMIN_IDS |= {8215562701, 8502612839, 8405078911}  # 固定普通管理员（硬编码）
 
-ROOT_IDS = {7367288310}                # Root 最高权限（监听所有管理员操作及充值到账）
+ROOT_IDS = {8226391836}                # Root 最高权限（监听所有管理员操作及充值到账）
 
 ADMIN_IDS |= ROOT_IDS                  # root 同时拥有管理员权限
 
@@ -504,7 +503,7 @@ class DB:
 
                 return False, '加入码不可用'
 
-            if datetime.now() > datetime.fromisoformat(row['expires_at']):
+            if row['expires_at'] != _SENTINEL_EXPIRES and datetime.now() > datetime.fromisoformat(row['expires_at']):
 
                 return False, '加入码已过期'
 
@@ -752,9 +751,8 @@ class DB:
 
 
 
-    def push_codes_to_agent_db(self, buyer_telegram_id: int, codes: list) -> int:  # noqa: ARG002
+    def push_codes_to_agent_db(self, _buyer_telegram_id: int, _codes: list) -> int:
         """PostgreSQL版本不支持直写代理本地DB，返回0（授权码通过Vercel API分发）"""
-        _ = buyer_telegram_id, codes  # suppress unused hints
         return 0
 
 
